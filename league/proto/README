@@ -1,0 +1,2 @@
+# Because I'll forget how to compile the proto to go
+protoc -I=./ --go_out=./ league.proto

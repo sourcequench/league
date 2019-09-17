@@ -1,0 +1,21 @@
+<h1>Roster</h1>
+
+<table style="width:100%">
+  <tr>
+    <th>Name</th>
+    <th>Player ID</th> 
+    <th>Email</th>
+  </tr>
+{{ range $key, $value := .players }}
+  {{if eq $value.firstName "Ryan" }}
+    <tr bgcolor="#f8ffbf">
+  {{ else }}
+    <tr bgcolor="#ffcdc6">
+  {{ end }}
+
+      <td>{{ $value.firstName }}</td>
+      <td>{{ $value.playerId }}</td> 
+      <td>{{ $value.email }}</td>
+    </tr>
+{{ end }}
+  </table>

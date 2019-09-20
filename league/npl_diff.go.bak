@@ -1,0 +1,200 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"github.com/gonum/stat"
+	"github.com/sourcequench/league/npl"
+	"math"
+	"math/rand"
+	"os"
+	"strconv"
+	"strings"
+)
+
+type Match struct {
+	date, p1name, p2name                             string
+	p1needs, p1got, p2needs, p2got, p1skill, p2skill float64
+	p1won, p2won                                     bool
+}
+
+// Race charts give a race, so we need to know which player is higher to know
+// which number of games goes with which player. True if p1 is higher. Equal
+// skills won't matter as the race will be the same.
+func (p *Match) HigherPlayer(p1skill, p2skill float64) bool {
+	higher := math.Max(p2skill, p1skill)
+	if higher == p1skill {
+		return true
+	} else {
+		return false
+	}
+}
+
+func main() {
+	// open, read, and parse the data into a match structure
+	// open data file
+	// read the bytes
+	// loop over, reading each line
+	// strings.Spit each line into a slice of strings
+	// extract the fields we need, for now we just need:
+	//   date, p1needs, p1got, p2needs, p2got, p1skill, p2skill
+	// TODO: sort by date so date entry mistakes don't fuck us up
+	// calculate a float of the expected percent win of p1 (g1 / (g1 + g2))
+	//
+	//
+	f, err := os.Open("data/ken-normalized")
+	if err != nil {
+		fmt.Printf("shit: %v", err)
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	var matches []Match
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), ",")
+		p1skill, err := strconv.ParseFloat(fields[1], 64)
+		if err != nil {
+			fmt.Printf("error getting p1skill: %v\n", fields)
+		}
+		p1needs, err := strconv.ParseFloat(fields[2], 64)
+		if err != nil {
+			fmt.Printf("p1needs: %v\n", err)
+		}
+		p1got, err := strconv.ParseFloat(fields[3], 64)
+		if err != nil {
+			fmt.Printf("error getting p1got: %v\n", fields)
+		}
+		p2skill, err := strconv.ParseFloat(fields[6], 64)
+		if err != nil {
+			fmt.Printf("error getting p2skill: %v\n", fields)
+		}
+		p2needs, err := strconv.ParseFloat(fields[7], 64)
+		if err != nil {
+			fmt.Printf("error getting p2needs: %v\n", err)
+		}
+		p2got, err := strconv.ParseFloat(fields[8], 64)
+		if err != nil {
+			fmt.Printf("error getting p2got: %v\n", fields)
+		}
+
+		p1name := fields[0]
+		p2name := fields[5]
+
+		m := Match{
+			p1name:  p1name,
+			p2name:  p2name,
+			date:    fields[6],
+			p1needs: p1needs,
+			p1got:   p1got,
+			p2needs: p2needs,
+			p2got:   p2got,
+			p1skill: p1skill,
+			p2skill: p2skill,
+		}
+		matches = append(matches, m)
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("shit2: %v", err)
+	}
+	diffs := AggDiff(matches)
+	mu, sigma := stat.MeanStdDev(diffs, nil)
+
+	fmt.Printf("Got/Needs average match difference: %f games, Sigma: %f\n", mu, sigma)
+	adjMatches := UpdateMatches(matches)
+
+	diffs = AggDiff(adjMatches)
+	mu, sigma = stat.MeanStdDev(diffs, nil)
+
+	fmt.Printf("Adjusted got/needs average match difference: %f games, Sigma: %f\n", mu, sigma)
+}
+
+// AggDiff takes a series of matches and returns the aggregated differences from predicted outcome.
+func AggDiff(matches []Match) []float64 {
+	// Read in timeseries data, all match results. More data is more better.
+	var diffs []float64
+	for _, match := range matches {
+		d1 := math.Abs(match.p1needs - match.p1got)
+		d2 := math.Abs(match.p2needs - match.p2got)
+		diffs = append(diffs, d2)
+		diffs = append(diffs, d1)
+	}
+	return diffs
+}
+
+// AdjustedMatches updates historic matchdata by making adjustments to the
+// skill updating mechainsm.
+func UpdateMatches(matches []Match) []Match {
+	// Structure outside the match loop for tracking our adjusted skills.
+	skills := make(map[string]float64)
+
+	var adjMatches []Match
+	for _, match := range matches {
+		adjMatch := Match{}
+		// Look up the latest skills - or if seeing the player for the first time add
+		// their skill based on the skill in this first match.
+		p1skill, ok := skills[match.p1name]
+		adjMatch.p1skill = p1skill
+		if !ok {
+			skills[match.p1name] = match.p1skill
+			adjMatch.p1skill = match.p1skill
+		}
+		p2skill, ok := skills[match.p2name]
+		adjMatch.p2skill = p2skill
+		if !ok {
+			skills[match.p2name] = match.p2skill
+			adjMatch.p2skill = match.p2skill
+		}
+
+		// Look up the race in the chart. Higher skill player has the higher game need.
+		p1higher := match.HigherPlayer(adjMatch.p1skill, adjMatch.p2skill)
+		if p1higher {
+			adjMatch.p1needs, adjMatch.p2needs = npl.NplRace(adjMatch.p1skill, adjMatch.p2skill)
+		} else {
+			adjMatch.p2needs, adjMatch.p1needs = npl.NplRace(adjMatch.p1skill, adjMatch.p2skill)
+		}
+
+		// Model a new "got" games, if historic data can't determine the winner.
+		adjMatch.p1got, adjMatch.p2got = UpdateGot(adjMatch.p1needs, adjMatch.p2needs, match.p1got, match.p2got)
+		if !(adjMatch.p1needs == match.p1needs && adjMatch.p2needs == match.p2needs) {
+			fmt.Printf("NEW p1n: %f, p2n: %f, p1g: %f, p2g: %f - ORIG p1n: %f, p2n: %f, p1g: %f, p2g: %f\n", adjMatch.p1needs, adjMatch.p2needs, adjMatch.p1got, adjMatch.p2got, match.p1needs, match.p2needs, match.p1got, match.p2got)
+			fmt.Printf("ORIG match: %v\n", match)
+		}
+
+		/*
+			maxGames := adjMatch.p1needs + adjMatch.p2needs - 1
+			playedGames := match.p1got + match.p2got
+
+			// Conditionaly adjust skills, based on who won and how close it was.
+				if adjMatch.p1got == adjMatch.p1needs {
+					adjMatch.p1skill, adjMatch.p2skill = npl.AdjustSkills(adjMatch.p1skill, adjMatch.p2skill, maxGames, playedGames)
+					skills[match.p1name], skills[match.p2name] = npl.AdjustSkills(adjMatch.p1skill, adjMatch.p2skill, maxGames, playedGames)
+				} else {
+					adjMatch.p2skill, adjMatch.p1skill = npl.AdjustSkills(adjMatch.p2skill, adjMatch.p1skill, maxGames, playedGames)
+					skills[match.p2name], skills[match.p1name] = npl.AdjustSkills(adjMatch.p1skill, adjMatch.p2skill, maxGames, playedGames)
+				}
+		*/
+
+		adjMatches = append(adjMatches, adjMatch)
+	}
+	for n, s := range skills {
+		fmt.Printf("%s:%f\n", n, s)
+	}
+	return adjMatches
+}
+
+// Fabricate new "got" results if necessary on historic matches.
+func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
+	// We didn't have enough matches for the new race, use math/rand
+	// to make something up proportional
+	if p1Got != p1Needs && p2Got != p2Needs {
+		pwin := p1Needs / (p1Needs + p2Needs)
+		r := rand.Float64()
+		if r < pwin {
+			p1Got += 1
+		} else {
+			p2Got += 1
+		}
+	}
+	return p1Got, p2Got
+}

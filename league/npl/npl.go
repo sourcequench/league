@@ -94,22 +94,20 @@ type Player struct {
 	skill float64
 }
 
-func AdjustSkills(winner, loser *float64, maxGames, playedGames float64) {
+// Update and return skills based on how close the game was.
+func AdjustSkills(winner, loser, maxGames, playedGames float64) (float64, float64) {
+	return winner, loser
 	percent := playedGames / maxGames
 	switch {
-	case percent < 0.75:
-		*winner += 3
-		*loser -= 3
+	case percent <= 0.75:
+		winner += 3
+		loser -= 3
 	case percent <= 0.9:
-		*winner += 2
-		*loser -= 2
+		winner += 2
+		loser -= 2
 	default:
-		*winner += 1
-		*loser -= 1
+		winner += 1
+		loser -= 1
 	}
-}
-
-// For simulation of race chart differnces, we often won't be able to complete a race. Pad the data based on the win chances.
-func InventData(p1, p2 Player) bool {
-	return true
+	return winner, loser
 }

@@ -33,9 +33,15 @@ func TestNplRace(t *testing.T) {
 			want1: 9,
 			want2: 6,
 		}, {
-			desc:  "high skill section",
+			desc:  "103 to 94",
 			s1:    80,
 			s2:    100,
+			want1: 9,
+			want2: 6,
+		}, {
+			desc:  "high skill section, higher player s1",
+			s1:    100,
+			s2:    80,
 			want1: 9,
 			want2: 6,
 		},

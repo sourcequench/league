@@ -69,13 +69,13 @@ func NplRace(p1, p2 float64) (float64, float64) {
 		case diffSkill <= 60:
 			return 12, 4
 		case diffSkill <= 68:
-			return 12, 4
-		case diffSkill <= 77:
 			return 12, 3
-		case diffSkill <= 86:
+		case diffSkill <= 77:
 			return 13, 3
-		case diffSkill <= 95:
+		case diffSkill <= 86:
 			return 14, 3
+		case diffSkill <= 95:
+			return 15, 3
 		case diffSkill >= 96:
 			return 17, 3
 		}

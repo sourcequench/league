@@ -51,7 +51,7 @@ func Parse(f string) ([]s.Match, error) {
 		m := s.Match{
 			P1name:  p1name,
 			P2name:  p2name,
-			Date:    fields[6],
+			Date:    fields[10],
 			P1needs: p1needs,
 			P1got:   p1got,
 			P2needs: p2needs,

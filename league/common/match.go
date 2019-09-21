@@ -5,9 +5,17 @@ import (
 )
 
 type Match struct {
-	Date, P1name, P2name                             string
-	P1needs, P1got, P2needs, P2got, P1skill, P2skill float64
-	P1won, P2won                                     bool
+	Date    string  `json:"date"`
+	P1name  string  `json:"p1name"`
+	P2name  string  `json:"p2name"`
+	P1needs float64 `json:"p1needs"`
+	P2needs float64 `json:"p2needs"`
+	P1got   float64 `json:"p1got"`
+	P2got   float64 `json:"p2got"`
+	P1skill float64 `json:"p1skill"`
+	P2skill float64 `json:"p2skill"`
+	P1won   bool    `json:"p1won"`
+	P2won   bool    `json:"p2won"`
 }
 
 // Race charts give a race, so we need to know which player is higher to know

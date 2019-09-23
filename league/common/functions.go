@@ -2,6 +2,8 @@ package common
 
 import (
 	"fmt"
+	"github.com/dylrich/rating/glicko2"
+	"github.com/mafredri/go-trueskill/gaussian"
 	"github.com/sourcequench/league/npl"
 	"math"
 	"math/rand"
@@ -18,6 +20,51 @@ func Diff(matches []Match) []float64 {
 		diffs = append(diffs, d1)
 	}
 	return diffs
+}
+
+// BetaDiff takes a series of matches and returns the aggregated differences from predicted outcome.
+func BetaDiff(matches []Match, beta float64) []float64 {
+	var diffs []float64
+	players := make(map[string]*glicko2.Player)
+	params := glicko2.Parameters{
+		InitialDeviation:  27,
+		InitialVolatility: .06,
+	}
+	for _, match := range matches {
+		// Add players as we discover them.
+		p1, ok := players[match.P1name]
+		if !ok {
+			params.InitialRating = match.P1skill
+			players[match.P1name] = glicko2.NewPlayer(params)
+			p1 = players[match.P1name]
+		}
+		p2, ok := players[match.P2name]
+		if !ok {
+			params.InitialRating = match.P2skill
+			players[match.P2name] = glicko2.NewPlayer(params)
+			p2 = players[match.P2name]
+		}
+
+		expected := Pwin(p1, p2, beta)
+		actual := float64(
+			float64(match.P1got) / float64(match.P1got+match.P2got))
+		//              fmt.Printf("expected: %f, actual: %f\n", expected, actual)
+		// We really only need to check a single player, as the other player is the inverse.
+		diff := math.Abs(expected - actual)
+		diffs = append(diffs, diff)
+	}
+
+	return diffs
+}
+
+func Pwin(p1, p2 *glicko2.Player, beta float64) float64 {
+	// TODO: do a ts.New and set beta on that?
+	deltaMu := p1.Rating - p2.Rating
+	sumSigma := math.Pow(p1.Deviation, 2) + math.Pow(p1.Deviation, 2)
+	//      sumSigma := p1.Deviation + p1.Deviation
+	rss := math.Sqrt(2*(beta*beta) + sumSigma)
+	//      rss := math.Sqrt(sumSigma)
+	return gaussian.NormCdf(deltaMu / rss)
 }
 
 // AdjustedMatches updates historic matchdata by making adjustments to the
@@ -95,12 +142,13 @@ func UpdateMatches(matches []Match) []Match {
 			skills[match.P2name], skills[match.P1name] = npl.AdjustSkills(w, l, maxGames, playedGames)
 		}
 		adjMatch.P2skill, adjMatch.P1skill = skills[match.P1name], skills[match.P2name]
-		fmt.Printf(
-			"### %3f, %3f, %2f, %2f\n### %3f, %3f, %2f, %2f\n\n",
-			match.P1skill, match.P2skill, match.P1needs, match.P2needs,
-			adjMatch.P1skill, adjMatch.P2skill, adjMatch.P1needs, adjMatch.P2needs,
-		)
-
+		/*
+			fmt.Printf(
+				"### %3f, %3f, %2f, %2f\n### %3f, %3f, %2f, %2f\n\n",
+				match.P1skill, match.P2skill, match.P1needs, match.P2needs,
+				adjMatch.P1skill, adjMatch.P2skill, adjMatch.P1needs, adjMatch.P2needs,
+			)
+		*/
 		adjMatches = append(adjMatches, adjMatch)
 	}
 	for n, s := range skills {

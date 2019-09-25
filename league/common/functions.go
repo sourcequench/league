@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"github.com/dylrich/rating/glicko2"
 	"github.com/mafredri/go-trueskill/gaussian"
 	"github.com/sourcequench/league/npl"
@@ -57,6 +56,33 @@ func BetaDiff(matches []Match, beta float64) []float64 {
 	return diffs
 }
 
+// PercentDiff takes a series of matches and returns the percent differences from predicted outcome.
+func PercentDiff(matches []Match) []float64 {
+	// Read in timeseries data, all match results. More data is more better.
+	var diffs []float64
+	for _, match := range matches {
+		d1 := match.P1got / match.P1needs
+		d2 := match.P2got / match.P2needs
+		diffs = append(diffs, d2)
+		diffs = append(diffs, d1)
+	}
+	return diffs
+}
+
+// PerUserPercentDiff takes a series of matches and returns the series of
+// percentage differences from predicted outcome broken down by user.
+func PerUserPercentDiff(matches []Match) map[string][]float64 {
+	// Read in timeseries data, all match results. More data is more better.
+	userDiffs := make(map[string][]float64)
+	for _, match := range matches {
+		d1 := match.P1got / match.P1needs
+		d2 := match.P2got / match.P2needs
+		userDiffs[match.P1name] = append(userDiffs[match.P1name], d1)
+		userDiffs[match.P2name] = append(userDiffs[match.P2name], d2)
+	}
+	return userDiffs
+}
+
 func Pwin(p1, p2 *glicko2.Player, beta float64) float64 {
 	// TODO: do a ts.New and set beta on that?
 	deltaMu := p1.Rating - p2.Rating
@@ -76,6 +102,15 @@ func UpdateMatches(matches []Match) []Match {
 	var adjMatches []Match
 	for _, match := range matches {
 		adjMatch := Match{}
+
+		// DELETE THESE TWO LINES
+		adjMatch.P1needs, adjMatch.P2needs = match.P1needs, match.P2needs
+		adjMatch.P1got, adjMatch.P2got = match.P1got, match.P2got
+
+		// Copy names over to the adjusted match
+		adjMatch.P1name = match.P1name
+		adjMatch.P2name = match.P2name
+
 		// Look up the latest skills - or if seeing the player for the first time add
 		// their skill based on the skill in this first match.
 		p1skill, ok := skills[match.P1name]
@@ -83,50 +118,30 @@ func UpdateMatches(matches []Match) []Match {
 		if !ok {
 			skills[match.P1name] = match.P1skill
 			adjMatch.P1skill = match.P1skill
-
+			p1skill = match.P1skill
 		}
-
 		p2skill, ok := skills[match.P2name]
-		adjMatch.P2skill = p2skill
 		if !ok {
 			skills[match.P2name] = match.P2skill
 			adjMatch.P2skill = match.P2skill
+			p2skill = match.P2skill
 		}
+		adjMatch.P2skill = p2skill
 
-		// Look up the race in the chart. Higher skill player has the higher game need.
-		p1higher := match.HigherPlayer(adjMatch.P1skill, adjMatch.P2skill)
-
-		if p1higher {
-			// new needs based on the latest skill
-			adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
-			// Model a new "got" games, if historic data can't determine the winner.
-			adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
-		} else {
-			// new needs based on the latest skill
-			adjMatch.P2needs, adjMatch.P1needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
-			// Model a new "got" games, if historic data can't determine the winner.
-			adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
-		}
-
-		/* FINDING BAD RACE CALCS IN DATA - MOVE THIS
-
-		n1, n2 := npl.NplRace(match.P1skill, match.P2skill)
-		p1higher = match.HigherPlayer(match.P1skill, match.P2skill)
-		if p1higher {
-			if match.P1needs != n1 || match.P2needs != n2 {
-				fmt.Printf("RACE MISCALC: %s, %s, %s, %f, %f\n", match.P1name, match.P2name, match.Date, match.P1skill, match.P2skill)
-				fmt.Printf("played race %f:%f\n", match.P2needs, match.P1needs)
-				fmt.Printf("calc'd race %f:%f\n", n1, n2)
+		/*
+			if adjMatch.P1skill > match.P1skill+20 || adjMatch.P2skill > match.P2skill+20 {
+				fmt.Printf("@@@: %f, %f | %f, %f\n", match.P1skill, adjMatch.P1skill, match.P2skill, adjMatch.P2skill)
+				fmt.Printf("@@@: %f, %f | %f, %f\n", adjMatch.P1got, adjMatch.P1needs, adjMatch.P2got, adjMatch.P2needs)
+				fmt.Printf("@@@: %f, %f | %f, %f\n\n\n", match.P1got, match.P1needs, match.P2got, match.P2needs)
 			}
-		} else {
-			if match.P2needs != n1 || match.P1needs != n2 {
-				fmt.Printf("RACE MISCALC: %s, %s, %s, %f, %f\n", match.P1name, match.P2name, match.Date, match.P1skill, match.P2skill)
-				fmt.Printf("played race %f:%f\n", match.P2needs, match.P1needs)
-				fmt.Printf("calc'd race %f:%f\n", n1, n2)
-			}
-
-		}
 		*/
+
+		// Look up and adjust needs from the race chart.
+		adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
+
+		// Model a new "got" games, if historic data can't determine the winner.
+
+		adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
 
 		maxGames := adjMatch.P1needs + adjMatch.P2needs - 1
 		playedGames := match.P1got + match.P2got
@@ -141,7 +156,7 @@ func UpdateMatches(matches []Match) []Match {
 			l := skills[match.P1name]
 			skills[match.P2name], skills[match.P1name] = npl.AdjustSkills(w, l, maxGames, playedGames)
 		}
-		adjMatch.P2skill, adjMatch.P1skill = skills[match.P1name], skills[match.P2name]
+		adjMatch.P1skill, adjMatch.P2skill = skills[match.P1name], skills[match.P2name]
 		/*
 			fmt.Printf(
 				"### %3f, %3f, %2f, %2f\n### %3f, %3f, %2f, %2f\n\n",
@@ -149,16 +164,25 @@ func UpdateMatches(matches []Match) []Match {
 				adjMatch.P1skill, adjMatch.P2skill, adjMatch.P1needs, adjMatch.P2needs,
 			)
 		*/
+
 		adjMatches = append(adjMatches, adjMatch)
-	}
-	for n, s := range skills {
-		fmt.Printf("%s:%f\n", n, s)
 	}
 	return adjMatches
 }
 
 // Fabricate new "got" results if necessary on historic matches.
 func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
+	// We have too many wins for both players based on the new race, roll back wins proportionally.
+	for p1Got > p1Needs && p2Got > p2Needs {
+		pwin := p1Needs / (p1Needs + p2Needs)
+		r := rand.Float64()
+		if r < pwin {
+			p1Got -= 1
+		} else {
+			p2Got -= 1
+		}
+
+	}
 	// We didn't have enough matches for the new race, use math/rand
 	// to make something up proportional
 	for p1Got < p1Needs && p2Got < p2Needs {
@@ -170,5 +194,13 @@ func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 			p2Got += 1
 		}
 	}
+	// Only one player had too many games - they win.
+	if p1Got > p1Needs {
+		p1Got = p1Needs
+	}
+	if p2Got > p2Needs {
+		p2Got = p2Needs
+	}
+
 	return p1Got, p2Got
 }

@@ -9,19 +9,19 @@ func TestNplRace(t *testing.T) {
 		want1, want2 float64
 	}{
 		{
-			desc:  "low skill section",
+			desc:  "low skill section, lower player first",
 			s1:    33,
 			s2:    59,
-			want1: 7,
-			want2: 5,
+			want1: 5,
+			want2: 7,
 		}, {
-			desc:  "medium skill section",
+			desc:  "medium skill section, lower player first",
 			s1:    38,
 			s2:    88,
-			want1: 9,
-			want2: 4,
+			want1: 4,
+			want2: 9,
 		}, {
-			desc:  "medium skill, higher player s1",
+			desc:  "medium skill, higher player first",
 			s1:    88,
 			s2:    38,
 			want1: 9,
@@ -30,14 +30,14 @@ func TestNplRace(t *testing.T) {
 			desc:  "high skill section",
 			s1:    80,
 			s2:    100,
-			want1: 9,
-			want2: 6,
+			want1: 6,
+			want2: 9,
 		}, {
 			desc:  "103 to 94",
 			s1:    80,
 			s2:    100,
-			want1: 9,
-			want2: 6,
+			want1: 6,
+			want2: 9,
 		}, {
 			desc:  "high skill section, higher player s1",
 			s1:    100,

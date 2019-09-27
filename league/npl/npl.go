@@ -93,7 +93,6 @@ func NplRace(p1, p2 float64) (float64, float64) {
 }
 
 func Pwin(p1, p2 float64) float64 {
-	// TODO: which number of games goes with which player
 	g1, g2 := NplRace(p1, p2)
 	return g1 / (g1 + g2)
 }
@@ -103,8 +102,29 @@ type Player struct {
 	skill float64
 }
 
-// Update and higher, lower = skills based on how close the game was.
-func AdjustSkills(winner, loser, maxGames, playedGames float64) (float64, float64) {
+// Implements the interfaces.Skill interface - updating skill by 3, 2, or 1 points.
+type ThreeTwoOne struct{}
+
+func (s ThreeTwoOne) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
+	percent := playedGames / maxGames
+	switch {
+	case percent <= 0.75:
+		winner += 3
+		loser -= 3
+	case percent <= 0.9:
+		winner += 2
+		loser -= 2
+	default:
+		winner += 1
+		loser -= 1
+	}
+	return winner, loser
+}
+
+// Implements the interfaces.Skill interface - updating skill by 2, 1, or 0 points.
+type TwoOneZero struct{}
+
+func (s TwoOneZero) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
 	percent := playedGames / maxGames
 	switch {
 	case percent <= 0.75:
@@ -117,5 +137,21 @@ func AdjustSkills(winner, loser, maxGames, playedGames float64) (float64, float6
 		winner += 0
 		loser -= 0
 	}
+	return winner, loser
+}
+
+// Implements the interfaces.Skill interface - updating based on the original +-2.
+type Two struct{}
+
+func (s Two) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
+	winner += 2
+	loser -= 2
+	return winner, loser
+}
+
+// Implements the interfaces.Skill interface - doing nothing for control
+type NoChange struct{}
+
+func (s NoChange) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
 	return winner, loser
 }

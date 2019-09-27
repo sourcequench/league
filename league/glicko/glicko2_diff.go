@@ -59,7 +59,7 @@ func main() {
 	for name, p := range players {
 		fmt.Printf("%s rating:%f deviation:%f\n", name, p.Rating, p.Deviation)
 	}
-	beta := float64(82.5)
+	beta := float64(43.8)
 	_, b, dl := optimize.OptimizeBeta(matches, beta)
 	mu, sigma := stat.MeanStdDev(dl, nil)
 

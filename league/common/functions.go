@@ -2,7 +2,9 @@ package common
 
 import (
 	"github.com/dylrich/rating/glicko2"
+	"github.com/golang/glog"
 	"github.com/mafredri/go-trueskill/gaussian"
+	"github.com/sourcequench/league/interfaces"
 	"github.com/sourcequench/league/npl"
 	"math"
 	"math/rand"
@@ -47,8 +49,6 @@ func BetaDiff(matches []Match, beta float64) []float64 {
 		expected := Pwin(p1, p2, beta)
 		actual := float64(
 			float64(match.P1got) / float64(match.P1got+match.P2got))
-		//              fmt.Printf("expected: %f, actual: %f\n", expected, actual)
-		// We really only need to check a single player, as the other player is the inverse.
 		diff := math.Abs(expected - actual)
 		diffs = append(diffs, diff)
 	}
@@ -93,13 +93,30 @@ func Pwin(p1, p2 *glicko2.Player, beta float64) float64 {
 	return gaussian.NormCdf(deltaMu / rss)
 }
 
-// AdjustedMatches updates historic matchdata by making adjustments to the
+// Provides a map of initial skills based on a set of matches.
+func InitialSkill(matches []Match) map[string]float64 {
+	skills := make(map[string]float64)
+	for _, match := range matches {
+		_, ok := skills[match.P1name]
+		if !ok {
+			skills[match.P1name] = match.P1skill
+		}
+		_, ok := skills[match.P2name]
+		if !ok {
+			skills[match.P2name] = match.P2skill
+		}
+	}
+	return skills
+}
+
+// UpdateMatches updates historic matchdata by making adjustments to the
 // skill updating mechainsm.
-func UpdateMatches(matches []Match) []Match {
+func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 	// Structure outside the match loop for tracking our adjusted skills.
 	skills := make(map[string]float64)
 
 	var adjMatches []Match
+	glog.V(2).Infoln("INITIAL SKILL")
 	for _, match := range matches {
 		adjMatch := Match{}
 
@@ -117,24 +134,18 @@ func UpdateMatches(matches []Match) []Match {
 		adjMatch.P1skill = p1skill
 		if !ok {
 			skills[match.P1name] = match.P1skill
+			glog.V(2).Infof("%s: %f\n", match.P1name, match.P1skill)
 			adjMatch.P1skill = match.P1skill
 			p1skill = match.P1skill
 		}
 		p2skill, ok := skills[match.P2name]
 		if !ok {
 			skills[match.P2name] = match.P2skill
+			glog.V(2).Infof("%s: %f\n", match.P2name, match.P2skill)
 			adjMatch.P2skill = match.P2skill
 			p2skill = match.P2skill
 		}
 		adjMatch.P2skill = p2skill
-
-		/*
-			if adjMatch.P1skill > match.P1skill+20 || adjMatch.P2skill > match.P2skill+20 {
-				fmt.Printf("@@@: %f, %f | %f, %f\n", match.P1skill, adjMatch.P1skill, match.P2skill, adjMatch.P2skill)
-				fmt.Printf("@@@: %f, %f | %f, %f\n", adjMatch.P1got, adjMatch.P1needs, adjMatch.P2got, adjMatch.P2needs)
-				fmt.Printf("@@@: %f, %f | %f, %f\n\n\n", match.P1got, match.P1needs, match.P2got, match.P2needs)
-			}
-		*/
 
 		// Look up and adjust needs from the race chart.
 		adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
@@ -150,15 +161,15 @@ func UpdateMatches(matches []Match) []Match {
 		if adjMatch.P1got == adjMatch.P1needs {
 			w := skills[match.P1name]
 			l := skills[match.P2name]
-			skills[match.P1name], skills[match.P2name] = npl.AdjustSkills(w, l, maxGames, playedGames)
+			skills[match.P1name], skills[match.P2name] = upskill.Update(w, l, maxGames, playedGames)
 		} else {
 			w := skills[match.P2name]
 			l := skills[match.P1name]
-			skills[match.P2name], skills[match.P1name] = npl.AdjustSkills(w, l, maxGames, playedGames)
+			skills[match.P2name], skills[match.P1name] = upskill.Update(w, l, maxGames, playedGames)
 		}
 		adjMatch.P1skill, adjMatch.P2skill = skills[match.P1name], skills[match.P2name]
 		/*
-			fmt.Printf(
+			glog.V(2).Infof(
 				"### %3f, %3f, %2f, %2f\n### %3f, %3f, %2f, %2f\n\n",
 				match.P1skill, match.P2skill, match.P1needs, match.P2needs,
 				adjMatch.P1skill, adjMatch.P2skill, adjMatch.P1needs, adjMatch.P2needs,
@@ -171,14 +182,18 @@ func UpdateMatches(matches []Match) []Match {
 }
 
 // Fabricate new "got" results if necessary on historic matches.
+// TODO: change this to take a skill update function as an argument for improved unit testing.
 func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 	// We have too many wins for both players based on the new race, roll back wins proportionally.
 	for p1Got > p1Needs && p2Got > p2Needs {
 		pwin := p1Needs / (p1Needs + p2Needs)
 		r := rand.Float64()
+		glog.V(2).Infof("both players have too many games needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
 		if r < pwin {
+			glog.V(2).Infof("p1 docked a game\n")
 			p1Got -= 1
 		} else {
+			glog.V(2).Infof("p2 docked a game\n")
 			p2Got -= 1
 		}
 
@@ -188,17 +203,22 @@ func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 	for p1Got < p1Needs && p2Got < p2Needs {
 		pwin := p1Needs / (p1Needs + p2Needs)
 		r := rand.Float64()
+		glog.V(2).Infof("neither player can achieve a win: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
 		if r < pwin {
+			glog.V(2).Infof("p1 given a game\n")
 			p1Got += 1
 		} else {
+			glog.V(2).Infof("p1 given a game\n")
 			p2Got += 1
 		}
 	}
 	// Only one player had too many games - they win.
 	if p1Got > p1Needs {
+		glog.V(2).Infof("p1 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
 		p1Got = p1Needs
 	}
 	if p2Got > p2Needs {
+		glog.V(2).Infof("p2 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
 		p2Got = p2Needs
 	}
 

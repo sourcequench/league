@@ -1,17 +1,26 @@
 package main
 
+// go run npl_diff.go -v=2 -logtostderr=true
+
 import (
+	"flag"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/gonum/stat"
 	c "github.com/sourcequench/league/common"
+	"github.com/sourcequench/league/npl"
 	p "github.com/sourcequench/league/parser"
 	"log"
 )
 
+func init() {
+	flag.Parse()
+}
+
 func main() {
-	matches, err := p.Parse("data/nobobby")
-	if err != nil {
-		log.Fatalf("could not open file: %v", err)
+	matches, errs := p.Parse("data/this-time-for-sure.csv", nil)
+	if errs != nil {
+		log.Fatalf("could not parse file: %v", errs)
 	}
 
 	skills := make(map[string]float64)
@@ -20,18 +29,18 @@ func main() {
 		skills[match.P1name] = match.P1skill
 		skills[match.P2name] = match.P2skill
 	}
-	/*
-		// Show the final skill ratings
-		for player, skill := range skills {
-			fmt.Printf("%s: %f\n", player, skill)
-		}
-	*/
+	// Show the final skill ratings
+	fmt.Println("FINAL SKILLS:")
+	for player, skill := range skills {
+		fmt.Printf("%s: %f\n", player, skill)
+	}
 
 	diffs := c.Diff(matches)
 	mu, sigma := stat.MeanStdDev(diffs, nil)
 
 	fmt.Printf("Got/Needs average match difference: %f games, Sigma: %f\n", mu, sigma)
-	adjMatches := c.UpdateMatches(matches)
+	s := npl.ThreeTwoOne{}
+	adjMatches := c.UpdateMatches(matches, s)
 	/*
 		for i, _ := range matches {
 			fmt.Printf("%v\n", matches[i])
@@ -48,5 +57,6 @@ func main() {
 		mu, sigma = stat.MeanStdDev(diffs, nil)
 		fmt.Printf("%s: mean: %f, sigma: %f\n", user, mu, sigma)
 	}
+	glog.Flush()
 
 }

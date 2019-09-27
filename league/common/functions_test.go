@@ -79,7 +79,7 @@ func TestPercentDiff(t *testing.T) {
 					P2skill: 38,
 				},
 			},
-			want: []float64{3, 0, 1, 0},
+			want: []float64{0.4, 1, 0.75, 1},
 		},
 	}
 
@@ -137,7 +137,7 @@ func TestUpdateMatches(t *testing.T) {
 					Date:    "2019-02-01",
 					P1name:  "Dude",
 					P2name:  "Bunny",
-					P2needs: 9,
+					P1needs: 9,
 					P2needs: 4,
 					P1got:   9,
 					P2got:   3,
@@ -191,6 +191,24 @@ func TestUpdateGot(t *testing.T) {
 			p2n:  7,
 			p1g:  1,
 			p2g:  3,
+		}, {
+			desc: "Both players too many games",
+			p1n:  10,
+			p2n:  7,
+			p1g:  11,
+			p2g:  9,
+		}, {
+			desc: "P1 too many games",
+			p1n:  10,
+			p2n:  7,
+			p1g:  11,
+			p2g:  3,
+		}, {
+			desc: "P2 too many games",
+			p1n:  10,
+			p2n:  7,
+			p1g:  1,
+			p2g:  9,
 		},
 	}
 

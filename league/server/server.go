@@ -4,7 +4,9 @@ import (
 	"cloud.google.com/go/storage"
 	"crypto/md5"
 	"fmt"
+	"github.com/gonum/stat"
 	c "github.com/sourcequench/league/common"
+	"github.com/sourcequench/league/npl"
 	"github.com/sourcequench/league/parser"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/file"
@@ -17,11 +19,12 @@ import (
 	"time"
 )
 
-var templates = template.Must(template.ParseFiles("upload.html"))
+var templates = template.Must(template.ParseFiles("report.html", "upload.html"))
 
 func main() {
 	http.HandleFunc("/upload", Upload)
-	http.HandleFunc("/root", Root)
+	http.HandleFunc("/", Root)
+	http.HandleFunc("/report", Report)
 	appengine.Main()
 	//	http.ListenAndServe(":9999", nil)
 }
@@ -112,6 +115,72 @@ Hello World
 </html>
 `
 	fmt.Fprintf(w, page)
+}
+
+type Dump struct {
+	// Initial skills map
+	Iskills map[string]float64
+	// 3/2/1 skills map
+	Threeskills map[string]float64
+	// 2/1/0 skills map
+	Twoskills map[string]float64
+	// +-2 skills map
+	Skills map[string]float64
+	// Overall mean, stddev for this strategy
+	IDist []float64
+	// Per player man, stddev for this strategy
+	IPlayerDist     map[string][]float64
+	ThreeDist       []float64
+	ThreePlayerDist map[string][]float64
+	TwoDist         []float64
+	TwoPlayerDist   map[string][]float64
+	Dist            []float64
+	PlayerDist      map[string][]float64
+}
+
+func Report(w http.ResponseWriter, r *http.Request) {
+	ctx := appengine.NewContext(r)
+	fileName := "uploaded.csv"
+	matches, _ := parser.Parse(fileName, ctx)
+	w.Header().Set("Content-Type", "text/html")
+	iskills := c.InitialSkill(matches)
+	// 3/2/1
+	threematches := c.UpdateMatches(matches, npl.ThreeTwoOne{})
+	threeskills := c.FinalSkill(threematches)
+	threediffs := c.PercentDiff(threematches)
+	threemu, threesigma := stat.MeanStdDev(threediffs, nil)
+	threeperuser := c.PerUserPercentDiff(threematches)
+	threedist := c.PlayerNormal(threeperuser)
+
+	// 2/1/0
+	twomatches := c.UpdateMatches(matches, npl.TwoOneZero{})
+	twoskills := c.FinalSkill(twomatches)
+	twodiffs := c.PercentDiff(twomatches)
+	twomu, twosigma := stat.MeanStdDev(twodiffs, nil)
+	twoperuser := c.PerUserPercentDiff(twomatches)
+	twodist := c.PlayerNormal(twoperuser)
+
+	// +-2
+	zmatches := c.UpdateMatches(matches, npl.Two{})
+	skills := c.FinalSkill(zmatches)
+	zdiffs := c.PercentDiff(zmatches)
+	zmu, zsigma := stat.MeanStdDev(zdiffs, nil)
+	zperuser := c.PerUserPercentDiff(zmatches)
+	zdist := c.PlayerNormal(zperuser)
+
+	d := Dump{
+		Iskills:         iskills,
+		Threeskills:     threeskills,
+		Twoskills:       twoskills,
+		Skills:          skills,
+		ThreeDist:       []float64{threemu, threesigma},
+		ThreePlayerDist: threedist,
+		TwoDist:         []float64{twomu, twosigma},
+		TwoPlayerDist:   twodist,
+		Dist:            []float64{zmu, zsigma},
+		PlayerDist:      zdist,
+	}
+	renderTemplate(w, "report", d)
 }
 
 func renderTemplate(w http.ResponseWriter, tmpl string, i interface{}) {

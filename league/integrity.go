@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	matches, err := p.Parse("data/ken-normalized")
+	matches, err := p.Parse("data/latest.csv", nil)
 	if err != nil {
 		log.Fatalf("could not open file: %v", err)
 	}

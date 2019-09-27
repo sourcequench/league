@@ -3,6 +3,7 @@ package common
 import (
 	"github.com/dylrich/rating/glicko2"
 	"github.com/golang/glog"
+	"github.com/gonum/stat"
 	"github.com/mafredri/go-trueskill/gaussian"
 	"github.com/sourcequench/league/interfaces"
 	"github.com/sourcequench/league/npl"
@@ -101,12 +102,33 @@ func InitialSkill(matches []Match) map[string]float64 {
 		if !ok {
 			skills[match.P1name] = match.P1skill
 		}
-		_, ok := skills[match.P2name]
+		_, ok = skills[match.P2name]
 		if !ok {
 			skills[match.P2name] = match.P2skill
 		}
 	}
 	return skills
+}
+
+// Provides a map of final skills based on a set of matches.
+func FinalSkill(matches []Match) map[string]float64 {
+	skills := make(map[string]float64)
+	for _, match := range matches {
+		skills[match.P1name] = match.P1skill
+		skills[match.P2name] = match.P2skill
+	}
+	return skills
+}
+
+// Provides a map mu and sigma for each player given their raw distributions.
+// The slice of float64 values in response are [0] mean, [1] stddev
+func PlayerNormal(userDiffs map[string][]float64) map[string][]float64 {
+	perUser := make(map[string][]float64)
+	for user, diffs := range userDiffs {
+		mu, sigma := stat.MeanStdDev(diffs, nil)
+		perUser[user] = []float64{mu, sigma}
+	}
+	return perUser
 }
 
 // UpdateMatches updates historic matchdata by making adjustments to the
@@ -120,10 +142,6 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 	for _, match := range matches {
 		adjMatch := Match{}
 
-		// DELETE THESE TWO LINES
-		adjMatch.P1needs, adjMatch.P2needs = match.P1needs, match.P2needs
-		adjMatch.P1got, adjMatch.P2got = match.P1got, match.P2got
-
 		// Copy names over to the adjusted match
 		adjMatch.P1name = match.P1name
 		adjMatch.P2name = match.P2name
@@ -131,24 +149,29 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 		// Look up the latest skills - or if seeing the player for the first time add
 		// their skill based on the skill in this first match.
 		p1skill, ok := skills[match.P1name]
-		adjMatch.P1skill = p1skill
 		if !ok {
 			skills[match.P1name] = match.P1skill
-			glog.V(2).Infof("%s: %f\n", match.P1name, match.P1skill)
+			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P1name, match.P1skill)
 			adjMatch.P1skill = match.P1skill
 			p1skill = match.P1skill
 		}
+		adjMatch.P1skill = p1skill
 		p2skill, ok := skills[match.P2name]
 		if !ok {
 			skills[match.P2name] = match.P2skill
-			glog.V(2).Infof("%s: %f\n", match.P2name, match.P2skill)
+			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P2name, match.P2skill)
 			adjMatch.P2skill = match.P2skill
 			p2skill = match.P2skill
 		}
 		adjMatch.P2skill = p2skill
+		glog.V(2).Infof("Skills set to NplRace for %s vs %s: orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
 
 		// Look up and adjust needs from the race chart.
 		adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
+		// Debug log when we make a change in race calculation.
+		if adjMatch.P1needs != match.P1needs || adjMatch.P2needs != match.P2needs {
+			glog.V(2).Infof("Adjusted match for %s vs %s: orig race:%f|%f new race:%f|%f orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1needs, match.P2needs, adjMatch.P1needs, adjMatch.P2needs, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
+		}
 
 		// Model a new "got" games, if historic data can't determine the winner.
 
@@ -161,11 +184,15 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 		if adjMatch.P1got == adjMatch.P1needs {
 			w := skills[match.P1name]
 			l := skills[match.P2name]
+			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
 			skills[match.P1name], skills[match.P2name] = upskill.Update(w, l, maxGames, playedGames)
+			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P1name], skills[match.P2name])
 		} else {
 			w := skills[match.P2name]
 			l := skills[match.P1name]
+			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
 			skills[match.P2name], skills[match.P1name] = upskill.Update(w, l, maxGames, playedGames)
+			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P2name], skills[match.P1name])
 		}
 		adjMatch.P1skill, adjMatch.P2skill = skills[match.P1name], skills[match.P2name]
 		/*

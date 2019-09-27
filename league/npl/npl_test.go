@@ -54,3 +54,62 @@ func TestNplRace(t *testing.T) {
 		}
 	}
 }
+
+func TestTwo(t *testing.T) {
+	cases := []struct {
+		desc         string
+		s1, s2       float64
+		want1, want2 float64
+	}{
+		{
+			desc:  "p1 wins",
+			s1:    33,
+			s2:    59,
+			want1: 35,
+			want2: 57,
+		},
+	}
+
+	for _, c := range cases {
+		s := Two{}
+		g1, g2 := s.Update(c.s1, c.s2, 0, 0)
+		if g1 != c.want1 || g2 != c.want2 {
+			t.Errorf("want: %f:%f, got: %f:%f", c.want1, c.want2, g1, g2)
+		}
+	}
+}
+
+func TestThreeTwoOne(t *testing.T) {
+	cases := []struct {
+		desc                  string
+		s1, s2                float64
+		want1, want2          float64
+		maxGames, playedGames float64
+	}{
+		{
+			desc:        "p1 beats the piss out of p2, adjust by 3",
+			s1:          100,
+			s2:          100,
+			maxGames:    15,
+			playedGames: 9,
+			want1:       103,
+			want2:       97,
+		}, {
+			desc:        "p1 won by 3 games, adjust by 2",
+			s1:          100,
+			s2:          100,
+			maxGames:    15,
+			playedGames: 13,
+			want1:       102,
+			want2:       98,
+		},
+	}
+
+	for _, c := range cases {
+		s := ThreeTwoOne{}
+		g1, g2 := s.Update(c.s1, c.s2, c.maxGames, c.playedGames)
+		if g1 != c.want1 || g2 != c.want2 {
+			t.Errorf("want: %f:%f, got: %f:%f", c.want1, c.want2, g1, g2)
+		}
+	}
+}

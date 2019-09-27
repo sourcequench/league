@@ -1,0 +1,9 @@
+package main
+
+import "html/template"
+import "fmt"
+
+func main() {
+	var templates = template.Must(template.ParseFiles("report.html"))
+	fmt.Printf("%v", templates)
+}

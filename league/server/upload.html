@@ -1,32 +1,12 @@
 <html>
-<head>
-  <title>Upload file</title>
-</head>
-<body>
-  <h1>Upload</h1>
-  <form enctype="multipart/form-data" action="/upload" method="post">
-    <input type="file" name="uploadfile" />
-    <input type="hidden" name="token" value="{{.}}"/>
-    <input type="submit" value="upload" />
-  </form>
-  <h1>Initial Skills</h1>
-				<table style="width:100%">
-					<tr>
-						<th>Player</th>
-						<th>Skill</th>
-					</tr>
-				{{ range $key, $value := . }}
-					{{if eq $value 0 }}
-						<tr bgcolor="#f8ffbf">
-					{{ else }}
-						<tr bgcolor="#ffcdc6">
-					{{ end }}
-
-							<td>{{ $key }}</td>
-							<td>{{ $value }}</td>
-						</tr>
-				{{ end }}
-					</table>
-</body>
+	<head>
+		       <title>Upload file</title>
+	</head>
+	<body>
+		<form enctype="multipart/form-data" action="/upload" method="post">
+			    <input type="file" name="uploadfile" />
+			        <input type="hidden" name="token" value="{{.}}"/>
+				    <input type="submit" value="upload" />
+		</form>
+	</body>
 </html>
-

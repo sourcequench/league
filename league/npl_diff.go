@@ -18,7 +18,7 @@ func init() {
 }
 
 func main() {
-	matches, errs := p.Parse("data/this-time-for-sure.csv", nil)
+	matches, errs := p.Parse("data/latest.csv", nil)
 	if errs != nil {
 		log.Fatalf("could not parse file: %v", errs)
 	}
@@ -39,7 +39,7 @@ func main() {
 	mu, sigma := stat.MeanStdDev(diffs, nil)
 
 	fmt.Printf("Got/Needs average match difference: %f games, Sigma: %f\n", mu, sigma)
-	s := npl.ThreeTwoOne{}
+	s := npl.Two{}
 	adjMatches := c.UpdateMatches(matches, s)
 	/*
 		for i, _ := range matches {
@@ -53,9 +53,9 @@ func main() {
 	fmt.Printf("Adjusted got/needs average match difference: %f games, Sigma: %f\n", mu, sigma)
 
 	userDiffs := c.PerUserPercentDiff(adjMatches)
-	for user, diffs := range userDiffs {
-		mu, sigma = stat.MeanStdDev(diffs, nil)
-		fmt.Printf("%s: mean: %f, sigma: %f\n", user, mu, sigma)
+	normalMap := c.PlayerNormal(userDiffs)
+	for user, stats := range normalMap {
+		fmt.Printf("%s: mean: %f, sigma: %f\n", user, stats[0], stats[1])
 	}
 	glog.Flush()
 

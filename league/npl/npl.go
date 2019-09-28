@@ -155,3 +155,40 @@ type NoChange struct{}
 func (s NoChange) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
 	return winner, loser
 }
+
+/*
+In the NPL system, two players who are 30 points apart are expected to win games
+in a 2:1 ratio on average. 60 points and it’s 4:1, and so on. This is identical
+to the Fargo probability scale except that the two systems scales are different
+by a ratio of 30:100. In Fargo, if two players are 100 points apart they can be
+expected to win in a 2:1 ratio. In the NPL the points difference is given by the
+formula 100*log_10(p1/p2) and in Fargo it is 100*log_2(p1/p2) where p1 is the
+chance player 1 will win a single game and p2 is the probability that player 2
+will win a game. (p1+p2=1)
+*/
+
+func Difference(p1chance, p2chance float64) float64 {
+	return 100 * math.Log10(p1chance/p2chance)
+}
+
+// NplPwin gives us the percentage chance that the higher skill player would win.
+func NplPwin(p1skill, p2skill float64) float64 {
+	diff := math.Abs(p1skill - p2skill)
+	// At a 30 point difference the higher player should win in a ratio of 2:1
+	// also known as 0.666... 30 more points is 4:1, or .8
+	// test case, difference of 0 should return .5
+
+	// How many 30 point differences do we have?
+	thirties := math.Floor(diff / 30)
+	numerator := math.Pow(2, thirties)
+	denominator := numerator + 1
+	basePwin := numerator / denominator
+
+	// How much do we adjust percentage win chance in between 30 point differences?
+	// Split up the difference between 0.5 and 0.6666... into 30 steps.
+	step := (2/3.0 - 0.5) / 30
+	// modulo gets us the remainder for proportional adjustment
+	mod := int(diff) % 30
+	pwin := basePwin + (float64(mod) * step)
+	return pwin
+}

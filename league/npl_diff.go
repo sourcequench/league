@@ -3,6 +3,7 @@ package main
 // go run npl_diff.go -v=2 -logtostderr=true
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
@@ -58,5 +59,15 @@ func main() {
 		fmt.Printf("%s: mean: %f, sigma: %f\n", user, stats[0], stats[1])
 	}
 	glog.Flush()
+
+	// Look for result swaps.
+	for i, match := range matches {
+		if match.P1needs == match.P1got && adjMatches[i].P1needs != adjMatches[i].P1got {
+			o, _ := json.MarshalIndent(match, "", "  ")
+			fmt.Printf("ORIGINAL MATCH: %s\n\n", string(o))
+			a, _ := json.MarshalIndent(adjMatches[i], "", "  ")
+			fmt.Printf("ADJUSTED MATCH: %s\n\n", string(a))
+		}
+	}
 
 }

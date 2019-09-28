@@ -1,6 +1,9 @@
 package npl
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestNplRace(t *testing.T) {
 	cases := []struct {
@@ -110,6 +113,39 @@ func TestThreeTwoOne(t *testing.T) {
 		g1, g2 := s.Update(c.s1, c.s2, c.maxGames, c.playedGames)
 		if g1 != c.want1 || g2 != c.want2 {
 			t.Errorf("want: %f:%f, got: %f:%f", c.want1, c.want2, g1, g2)
+		}
+	}
+}
+
+func TestNplPwin(t *testing.T) {
+	cases := []struct {
+		desc   string
+		s1, s2 float64
+		want   float64
+	}{
+		{
+			desc: "big skill difference, 64, lower player first",
+			s1:   30,
+			s2:   94,
+			want: 0.822222,
+		}, {
+			desc: "same skill",
+			s1:   50,
+			s2:   50,
+			want: 0.5,
+		}, {
+			desc: "exactly 30 points different",
+			s1:   80,
+			s2:   50,
+			want: 2 / 3.0, // This is the same as saying 2:1 ratio
+		},
+	}
+
+	const tolerance = .000001
+	for _, c := range cases {
+		pwin := NplPwin(c.s1, c.s2)
+		if math.Abs(pwin-c.want) > tolerance {
+			t.Errorf("want: %f, got: %f", c.want, pwin)
 		}
 	}
 }

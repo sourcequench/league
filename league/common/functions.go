@@ -175,7 +175,8 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 
 		// Model a new "got" games, if historic data can't determine the winner.
 
-		adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
+		//adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
+		adjMatch.P1got, adjMatch.P2got = StatUpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got, match.P1needs, match.P2needs)
 
 		maxGames := adjMatch.P1needs + adjMatch.P2needs - 1
 		playedGames := match.P1got + match.P2got

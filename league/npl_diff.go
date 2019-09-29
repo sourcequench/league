@@ -24,15 +24,10 @@ func main() {
 		log.Fatalf("could not parse file: %v", errs)
 	}
 
-	skills := make(map[string]float64)
-
-	for _, match := range matches {
-		skills[match.P1name] = match.P1skill
-		skills[match.P2name] = match.P2skill
-	}
 	// Show the final skill ratings
-	fmt.Println("FINAL SKILLS:")
-	for player, skill := range skills {
+	fmt.Println("ENDING SKILLS:")
+	finalMap := c.FinalSkill(matches)
+	for player, skill := range finalMap {
 		fmt.Printf("%s: %f\n", player, skill)
 	}
 

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/sourcequench/league/npl"
 	"reflect"
 	"testing"
 )
@@ -149,7 +150,8 @@ func TestUpdateMatches(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := UpdateMatches(c.matches)
+		s := npl.Two{}
+		got := UpdateMatches(c.matches, s)
 		for i, match := range c.matches {
 			if match.P1needs != got[i].P1needs {
 				t.Errorf("desc: %s, P1needs, want: %f, got: %f", c.desc, match.P1needs, got[i].P1needs)
@@ -214,6 +216,64 @@ func TestUpdateGot(t *testing.T) {
 
 	for _, c := range cases {
 		p1g, p2g := UpdateGot(c.p1n, c.p2n, c.p1g, c.p2g)
+		if p1g != c.p1n && p2g != c.p2n {
+			t.Errorf("desc: %s, got: %f, %f", c.desc, p1g, p2g)
+		}
+	}
+}
+
+func TestStatUpdateGot(t *testing.T) {
+	cases := []struct {
+		desc               string
+		p1n, p2n, p1g, p2g float64
+		p1on, p2on         float64
+		p1want, p2want     float64
+	}{
+		{
+			desc:   "one player has too many, one not enough",
+			p1n:    4,
+			p2n:    10,
+			p1on:   6,
+			p2on:   9,
+			p1g:    6,
+			p2g:    6,
+			p1want: 4,
+			p2want: 7,
+		}, {
+			desc:   "same got/needs ratio",
+			p1n:    6,
+			p2n:    10,
+			p1on:   3,
+			p2on:   7,
+			p1g:    3,
+			p2g:    5,
+			p1want: 6,
+			p2want: 7,
+		}, {
+			desc:   "another too many, not enough",
+			p1n:    6,
+			p2n:    5,
+			p1on:   9,
+			p2on:   4,
+			p1g:    8,
+			p2g:    4,
+			p1want: 4,
+			p2want: 7,
+		}, {
+			desc:   "both players have too many",
+			p1n:    4,
+			p2n:    6,
+			p1on:   6,
+			p2on:   9,
+			p1g:    8,
+			p2g:    4,
+			p1want: 4,
+			p2want: 5,
+		},
+	}
+
+	for _, c := range cases {
+		p1g, p2g := StatUpdateGot(c.p1n, c.p2n, c.p1g, c.p2g, c.p1on, c.p2on)
 		if p1g != c.p1n && p2g != c.p2n {
 			t.Errorf("desc: %s, got: %f, %f", c.desc, p1g, p2g)
 		}

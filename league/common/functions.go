@@ -208,6 +208,75 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 	return adjMatches
 }
 
+// StatUpdateGot abricates new "got" results based on Ken's algorithm.
+func StatUpdateGot(
+	p1Needs float64, p2Needs float64, p1Got float64,
+	p2Got float64, p1OrigNeeds float64, p2OrigNeeds float64) (float64, float64) {
+	// Calcuate both original got/needs ratio as well as new got/needs ratio.
+	p1ratio := p1Got / p1Needs
+	p2ratio := p2Got / p2Needs
+	origP1ratio := p1Got / p1OrigNeeds
+	origP2ratio := p2Got / p1OrigNeeds
+
+	// Neither player had enough, or both players had too many.
+	// Invent games based on a Ken's invention mechanism
+	if (p1Got < p1Needs && p2Got < p2Needs) ||
+		(p1Got > p1Needs && p2Got > p2Needs) {
+		switch {
+		// With equal proportions, the original winner snaps to a win.
+		// The non-winner player has no adjustment, regardless of the
+		// original winner's distance from winning. Ryan things this
+		// will molest results.
+		case p1ratio == p2ratio:
+			if p1Got == p1OrigNeeds {
+				p1Got = p1Needs
+			} else {
+				p2Got = p2Needs
+			}
+		// P1 had a higher ratio
+		case p1ratio > p2ratio:
+			p1Got = p1Needs
+			// Assume the original ratio and multiply that by the new needs and round.
+			p2Got = math.Round(origP2ratio * p2Needs)
+		// P2 had the higher ratio
+		case p2ratio > p1ratio:
+			p2Got = p2Needs
+			// Assume the original ratio and multiply that by the new needs and round.
+			p1Got = math.Round(origP1ratio * p1Needs)
+		}
+	} else if (p1Got > p1Needs && p2Got < p2Needs) ||
+		(p1Got > p1Needs && p2Got > p2Needs) {
+		// P1 has too many, P2 has not enough or the reverse.
+		switch {
+		// With equal proportions, the original winner snaps to a win.
+		// The non-winner player has no adjustment, regardless of the
+		// original winner's distance from winning. Ryan things this
+		// will molest results.
+		case p1ratio == p2ratio:
+			if p1Got == p1OrigNeeds {
+				p1Got = p1Needs
+			} else {
+				p2Got = p2Needs
+			}
+		// P1 had a higher ratio
+		case p1ratio > p2ratio:
+			// Snap player one to a win.
+			p1Got = p1Needs
+			// Snap player to needs - 1. Why we do this rather than continuing with the proportional approach above I don't know.
+			p2Got = p2Needs - 1
+		// P2 had the higher ratio
+		case p2ratio > p1ratio:
+			p2Got = p2Needs
+			p1Got = p1Needs - 1
+		}
+	} else {
+		// This should never happen.
+		glog.Fatalf("What the hell was that?: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
+	}
+
+	return p1Got, p2Got
+}
+
 // Fabricate new "got" results if necessary on historic matches.
 // TODO: change this to take a skill update function as an argument for improved unit testing.
 func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
@@ -250,4 +319,28 @@ func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 	}
 
 	return p1Got, p2Got
+}
+
+type Match struct {
+	Date    string  `json:"date"`
+	P1name  string  `json:"p1name"`
+	P2name  string  `json:"p2name"`
+	P1needs float64 `json:"p1needs"`
+	P2needs float64 `json:"p2needs"`
+	P1got   float64 `json:"p1got"`
+	P2got   float64 `json:"p2got"`
+	P1skill float64 `json:"p1skill"`
+	P2skill float64 `json:"p2skill"`
+}
+
+// Race charts give a race, so we need to know which player is higher to know
+// which number of games goes with which player. True if p1 is higher. Equal
+// skills won't matter as the race will be the same.
+func (p *Match) HigherPlayer(p1skill, p2skill float64) bool {
+	higher := math.Max(p2skill, p1skill)
+	if higher == p1skill {
+		return true
+	} else {
+		return false
+	}
 }

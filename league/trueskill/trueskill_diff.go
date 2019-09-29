@@ -3,114 +3,70 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/gonum/stat"
+	//	"github.com/gonum/stat"
 	ts "github.com/mafredri/go-trueskill"
 	"github.com/mafredri/go-trueskill/gaussian"
+	c "github.com/sourcequench/league/common"
+	"github.com/sourcequench/league/parser"
 	"math"
 	"os"
 	"strconv"
 	"strings"
 )
 
-type Match struct {
-	// Information about skill and variance of each player at match time.
-	p1, p2 *ts.Player
-	// Player 1 and 2 games won
-	p1got, p2got float64
-}
+const beta = 40
 
 func main() {
 	mu := ts.Mu(80)
 	t := ts.New(mu)
 
-	f, err := os.Open("data/alldata")
+	matches, err := parser.Parse("../data/latest.csv", nil)
 	if err != nil {
-		fmt.Printf("shit: %v", err)
-		return
+		log.Fatalf("could not open file: %v", err)
 	}
-	defer f.Close()
 
 	players := make(map[string]*ts.Player)
 
-	scanner := bufio.NewScanner(f)
-	var matches []Match
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), ",")
-
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Printf("That line was wacky!: %v", fields)
-			}
-		}()
-
-		p1name := fields[0]
-		p2name := fields[7]
-
-		p1skill, err := strconv.ParseFloat(fields[2], 64)
-		if err != nil {
-			fmt.Printf("p1skill error: %v %v\n", fields, err)
-		}
-		p2skill, err := strconv.ParseFloat(fields[9], 64)
-		if err != nil {
-			fmt.Printf("p2skill error: %v %v\n", fields, err)
-		}
-
-		p1, ok := players[p1name]
+	for _, match := range matches {
+		p1, ok := players[match.P1name]
 		if !ok {
 			// First time seeing p1, adding them
-			player := ts.NewPlayer(p1skill, 8.333)
-			players[p1name] = &player
+			player := ts.NewPlayer(match.P1skill, 25)
+			players[match.P1name] = &player
 			p1 = &player
 		}
-		p2, ok := players[p2name]
+		p2, ok := players[match.P2name]
 		if !ok {
 			// First time seeing p2, adding them
-			player := ts.NewPlayer(p2skill, 8.333)
-			players[p2name] = &player
+			player := ts.NewPlayer(match.P2skill, 25)
+			players[match.P2name] = &player
 			p2 = &player
 		}
 
-		p1got, err := strconv.ParseFloat(fields[4], 64)
-		if err != nil {
-			fmt.Printf("p1got: %v\n", err)
-		}
-		p2got, err := strconv.ParseFloat(fields[11], 64)
-		if err != nil {
-			fmt.Printf("p2got: %v\n", err)
-		}
+		// Update the race before recalculating skills
+		match.P1needs, match.P2needs = Race(17, p1, p2)
 
 		// Update players based on p2 wins
-		for g := 1; g <= int(p2got); g++ {
-			// FIXME - this is wrong
+		for g := 1; g <= int(match.P2got); g++ {
 			p := []ts.Player{*p2, *p1}
-			t.AdjustSkills(p, false)
-			adjusted, _ := t.AdjustSkills(p, false)
-			players[p2name] = &adjusted[0]
-			players[p1name] = &adjusted[1]
+			newskills, _ := ts.AdjustSkills(p, false)
+
+			players[p2name] = &newskills[0]
+			players[p1name] = &newskills[1]
 		}
 		// Update players based on p1 wins
-		for g := 1; g <= int(p1got); g++ {
+		for g := 1; g <= int(match.P1got); g++ {
 			p := []ts.Player{*p1, *p2}
-			adjusted, _ := t.AdjustSkills(p, false)
-			players[p1name] = &adjusted[0]
-			players[p2name] = &adjusted[1]
+			newskills, _ := ts.AdjustSkills(p, false)
+
+			players[p1name] = &newskills[0]
+			players[p2name] = &newskills[1]
 		}
 
-		m := Match{
-			p1got: p1got,
-			p2got: p2got,
-			p1:    p1,
-			p2:    p2,
-		}
-		matches = append(matches, m)
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Printf("shit2: %v", err)
 	}
 
-	beta := float64(82.5)
 	diff := AggDiff(matches, beta)
-	fmt.Printf("Original diff: %f\n", diff/float64(len(matches)))
+	fmt.Printf("Original diff: %f\n", diff/float65(len(matches)))
 	//d, b := OptimizeBeta(matches, beta)
 	//adPerMatch := d / float64(len(matches))
 	for n, p := range players {
@@ -167,8 +123,6 @@ func OptimizeBeta(matches []Match, beta float64) (float64, float64) {
 }
 
 func Pwin(p1, p2 *ts.Player, beta float64) float64 {
-	// TODO: do a ts.New and set beta on that?
-	// https://www.khanacademy.org/math/ap-statistics/random-variables-ap/combining-random-variables/v/analyzing-the-difference-in-distributions
 	deltaMu := p1.Mean() - p2.Mean()
 	// the variance of the difference is going to be the sum of these two variances
 	// variance is sigma squared
@@ -176,4 +130,12 @@ func Pwin(p1, p2 *ts.Player, beta float64) float64 {
 	rss := math.Sqrt(2*(beta*beta) + sumSigma)
 	//rss := math.Sqrt(sumSigma)
 	return gaussian.NormCdf(deltaMu / rss)
+}
+
+func Race(maxGames int, p1, p2 *ts.Player, beta float64) (float64, float64) {
+	// TODO: should we always take the floor of the lower player?
+	// TODO: what is the logic behind different max games for different
+	// races? poorer players finish games more slowly - is that actually true?
+	p1games := math.Round(Pwin(p1, p2, beta) * float64(maxGames))
+	return p1games, float64(maxGames) - p1games
 }

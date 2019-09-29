@@ -5,16 +5,17 @@ import (
 	"github.com/dylrich/rating/glicko2"
 	"github.com/gonum/stat"
 	"github.com/mafredri/go-trueskill/gaussian"
-	"github.com/sourcequench/league/optimize"
+	c "github.com/sourcequench/league/common"
 	"github.com/sourcequench/league/parser"
 	"log"
 	"math"
 )
 
 func main() {
-	glicko2.SystemConstant = 0.2
+	glicko2.SystemConstant = 0.1
+	beta := float64(41.03)
 
-	matches, err := parser.Parse("../data/ken-normalized")
+	matches, err := parser.Parse("../data/latest.csv", nil)
 	if err != nil {
 		log.Fatalf("could not open file: %v", err)
 	}
@@ -26,6 +27,8 @@ func main() {
 
 	players := make(map[string]*glicko2.Player)
 
+	// hang on to predicted versus actual differences
+	var diffs []float64
 	for _, match := range matches {
 		p1, ok := players[match.P1name]
 		if !ok {
@@ -44,6 +47,17 @@ func main() {
 			p2 = p
 		}
 
+		// Calculate new race before updating with the results.
+		match.P1needs, match.P2needs = Race(17, p1, p2, beta)
+		match.P1got, match.P2got = c.UpdateGot(match.P1needs, match.P2needs, match.P1got, match.P2got)
+
+		if match.P2needs == 0 || match.P1needs == 0 {
+			fmt.Printf("shit divide by zero: %f, %f\n", match.P2needs, match.P1needs)
+		}
+		// Add each player's percent of got/needs
+		diffs = append(diffs, match.P1got/match.P1needs)
+		diffs = append(diffs, match.P2got/match.P2needs)
+
 		// Update players based on p1 wins
 		for g := 1; g <= int(match.P1got); g++ {
 			p1.Win(p2.Rating, p2.Deviation)
@@ -59,15 +73,11 @@ func main() {
 	for name, p := range players {
 		fmt.Printf("%s rating:%f deviation:%f\n", name, p.Rating, p.Deviation)
 	}
-	beta := float64(43.8)
-	_, b, dl := optimize.OptimizeBeta(matches, beta)
-	mu, sigma := stat.MeanStdDev(dl, nil)
 
-	fmt.Printf("Optimal diff: %f, Optimal beta: %f, Sigma: %f\n", mu, b, sigma)
-	player1, player2 := "WinstonW", "KenB"
-	fmt.Printf("Percent %s beating %s: %f\n", player1, player2, Pwin(players["BobbyS"], players["KevinH"], b))
-	n1, n2 := race(30, players[player1], players[player2], b)
-	fmt.Printf("Race: %f %f\n", n1, n2)
+	fmt.Printf("%v\n", diffs)
+	mu, sigma := stat.MeanStdDev(diffs, nil)
+	fmt.Printf("Mean: %f, Stddev: %f\n", mu, sigma)
+
 }
 
 func Pwin(p1, p2 *glicko2.Player, beta float64) float64 {
@@ -80,7 +90,7 @@ func Pwin(p1, p2 *glicko2.Player, beta float64) float64 {
 	return gaussian.NormCdf(deltaMu / rss)
 }
 
-func race(maxGames int, p1, p2 *glicko2.Player, b float64) (float64, float64) {
+func Race(maxGames int, p1, p2 *glicko2.Player, b float64) (float64, float64) {
 	// TODO: should we always take the floor of the lower player?
 	// TODO: what is the logic behind different max games for different
 	// races? poorer players finish games more slowly - is that actually true?

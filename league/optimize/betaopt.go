@@ -27,6 +27,7 @@ func OptimizeBeta(matches []c.Match, beta float64) (float64, float64, []float64)
 	}
 	beta = beta + betastep + betastep
 
+	// TODO: I calculate diffs elsewhere - think about this further.
 	diffList := c.BetaDiff(matches, beta)
 	d, _ := stat.MeanStdDev(diffList, nil)
 	for d < bestDiff {

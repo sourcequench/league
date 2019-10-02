@@ -3,7 +3,7 @@ package main
 // go run npl_diff.go -v=2 -logtostderr=true
 
 import (
-	"encoding/json"
+	//	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/golang/glog"
@@ -35,7 +35,7 @@ func main() {
 	mu, sigma := stat.MeanStdDev(diffs, nil)
 
 	fmt.Printf("Got/Needs average match difference: %f games, Sigma: %f\n", mu, sigma)
-	s := npl.Two{}
+	s := npl.TwoOneZero{}
 	adjMatches := c.UpdateMatches(matches, s)
 	/*
 		for i, _ := range matches {
@@ -55,14 +55,16 @@ func main() {
 	}
 	glog.Flush()
 
-	// Look for result swaps.
-	for i, match := range matches {
-		if match.P1needs == match.P1got && adjMatches[i].P1needs != adjMatches[i].P1got {
-			o, _ := json.MarshalIndent(match, "", "  ")
-			fmt.Printf("ORIGINAL MATCH: %s\n\n", string(o))
-			a, _ := json.MarshalIndent(adjMatches[i], "", "  ")
-			fmt.Printf("ADJUSTED MATCH: %s\n\n", string(a))
+	/*
+		// Look for result swaps.
+		for i, match := range matches {
+			if match.P1needs == match.P1got && adjMatches[i].P1needs != adjMatches[i].P1got {
+				o, _ := json.MarshalIndent(match, "", "  ")
+				fmt.Printf("ORIGINAL MATCH: %s\n\n", string(o))
+				a, _ := json.MarshalIndent(adjMatches[i], "", "  ")
+				fmt.Printf("ADJUSTED MATCH: %s\n\n", string(a))
+			}
 		}
-	}
+	*/
 
 }

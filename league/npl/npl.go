@@ -237,7 +237,7 @@ func Round(x float64) float64 {
 func NplPwin(p1skill, p2skill float64) float64 {
 	diff := math.Abs(p1skill - p2skill)
 	// 100*log10(p1chance/p2chance) = difference, use algebra to solve for p1chance/p2chance
-	ratio := math.Pow(math.Pow(12, diff), 1/100.0)
+	ratio := math.Pow(math.Pow(10, diff), 1/100.0)
 	// so a ratio of 2:1 is 2 out of 3 games, so 0.66666 percent chance the better player will win.
 	return ratio / (1 + ratio)
 }

@@ -1,6 +1,7 @@
 package npl
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -149,6 +150,15 @@ func (s Two) Update(winner, loser, maxGames, playedGames float64) (float64, floa
 	return winner, loser
 }
 
+// Implements the interfaces.Skill interface - updating based on NPL designed adjustment +-1
+type One struct{}
+
+func (s One) Update(winner, loser, maxGames, playedGames float64) (float64, float64) {
+	winner += 1
+	loser -= 1
+	return winner, loser
+}
+
 // Implements the interfaces.Skill interface - doing nothing for control
 type NoChange struct{}
 
@@ -167,12 +177,73 @@ chance player 1 will win a single game and p2 is the probability that player 2
 will win a game. (p1+p2=1)
 */
 
-func Difference(p1chance, p2chance float64) float64 {
-	return 100 * math.Log10(p1chance/p2chance)
+func Difference(p1chance, p2chance float64) (float64, error) {
+	if p1chance+p2chance != 1 {
+		return 0, fmt.Errorf("chances do not add to 1: %f, %f", p1chance, p2chance)
+	}
+	return 100 * math.Log10(p1chance/p2chance), nil
+}
+
+// FitRace will return a race fitted to the percentage win chance of the players
+// given their skill rating. Fitted means the closest whole number race for which
+// one of the players would win given the provided "got" games.
+
+func FitRace(p1skill, p2skill, p1got, p2got float64) (float64, float64) {
+	// Get the chance of each player winning.
+	higherChance := NplPwin(p1skill, p2skill)
+	lowerChance := 1 - higherChance
+	played := p1got + p2got
+
+	var p1Higher bool
+	var higherGot, lowerGot float64
+	// Which player is higher?
+	if p1skill > p2skill {
+		higherGot, lowerGot = p1got, p2got
+		p1Higher = true
+	} else {
+		lowerGot, higherGot = p1got, p2got
+	}
+
+	higherNeeds, lowerNeeds := Round(higherChance*played), Round(lowerChance*played)
+	// Starting with the number of games actually played, round to the number of games needed for player1 and player2.
+
+	// Both players do not have enough to win, walk played matches down until we have a winner.
+	for higherGot < higherNeeds && lowerGot < lowerNeeds {
+		played -= 1
+		higherNeeds, lowerNeeds = Round(higherChance*played), Round(lowerChance*played)
+	}
+	// One or more players has too many, walk needs up until we have a winner.
+	for higherGot > higherNeeds || lowerGot > lowerNeeds {
+		played += 1
+		higherNeeds, lowerNeeds = Round(higherChance*played), Round(lowerChance*played)
+	}
+	// Return race needs in the same position as the player skills provided.
+	if p1Higher {
+		return higherNeeds, lowerNeeds
+	} else {
+		return lowerNeeds, higherNeeds
+	}
+}
+
+func Round(x float64) float64 {
+	t := math.Trunc(x)
+	if math.Abs(x-t) >= 0.5 {
+		return t + math.Copysign(1, x)
+	}
+	return t
 }
 
 // NplPwin gives us the percentage chance that the higher skill player would win.
 func NplPwin(p1skill, p2skill float64) float64 {
+	diff := math.Abs(p1skill - p2skill)
+	// 100*log10(p1chance/p2chance) = difference, use algebra to solve for p1chance/p2chance
+	ratio := math.Pow(math.Pow(10, diff), 1/100.0)
+	// so a ratio of 2:1 is 2 out of 3 games, so 0.66666 percent chance the better player will win.
+	return ratio / (1 + ratio)
+}
+
+// BustedNplPwin gives us the percentage chance that the higher skill player would win.
+func BustedNplPwin(p1skill, p2skill float64) float64 {
 	diff := math.Abs(p1skill - p2skill)
 	// At a 30 point difference the higher player should win in a ratio of 2:1
 	// also known as 0.666... 30 more points is 4:1, or .8

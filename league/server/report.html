@@ -5,7 +5,7 @@
 </head>
 <body>
   <h1>Final Skills For Differing Skill Adjustment Strategies</h1>
-  <h2>Initial Skills</h2>
+  <h2>Unmodified Initial Skills</h2>
       <table style="width:100%">
           <tr>
             <th>Player</th>
@@ -18,12 +18,26 @@
             </tr>
         {{ end }}
           </table>
+  <h2>Unmodified Final Skills</h2>
+      <table style="width:100%">
+          <tr>
+            <th>Player</th>
+            <th>Skill</th>
+          </tr>
+        {{ range $key, $value := .Fskills }}
+            <tr bgcolor="#A2CDDF">
+              <td>{{ $key }}</td>
+              <td>{{ $value }}</td>
+            </tr>
+        {{ end }}
+          </table>
   <h2><a href="https://github.com/sourcequench/league/blob/master/league/npl/npl.go">3/2/1 Final Skills</a></h2>
   <p>Overall Median: {{ index .ThreeDist 0}} Overall StdDev: {{ index .ThreeDist 1}} </p>
       <table style="width:100%">
           <tr>
             <th>Player</th>
             <th>Skill</th>
+            <th>Match Win Percent</th>
             <th>Median</th>
             <th>Standard Deviation</th>
           </tr>
@@ -31,6 +45,7 @@
             <tr bgcolor="#E4B688">
               <td>{{ $key }}</td>
               <td>{{ $value }}</td>
+              <td>{{ index $root.ThreeWins $key }}</td>
               <td>{{ index (index $root.ThreePlayerDist $key) 0}}</td>
               <td>{{ index (index $root.ThreePlayerDist $key) 1}}</td>
             </tr>
@@ -42,6 +57,7 @@
           <tr>
             <th>Player</th>
             <th>Skill</th>
+            <th>Match Win Percent</th>
             <th>Median</th>
             <th>Standard Deviation</th>
           </tr>
@@ -49,6 +65,7 @@
             <tr bgcolor="#E4E488">
               <td>{{ $key }}</td>
               <td>{{ $value }}</td>
+              <td>{{ index $root.TwoWins $key }}</td>
               <td>{{ index (index $root.TwoPlayerDist $key) 0}}</td>
               <td>{{ index (index $root.TwoPlayerDist $key) 1}}</td>
             </tr>
@@ -60,6 +77,7 @@
           <tr>
             <th>Player</th>
             <th>Skill</th>
+            <th>Match Win Percent</th>
             <th>Median</th>
             <th>Standard Deviation</th>
           </tr>
@@ -67,8 +85,49 @@
             <tr bgcolor="#B6E488">
               <td>{{ $key }}</td>
               <td>{{ $value }}</td>
+              <td>{{ index $root.Wins $key }}</td>
               <td>{{ index (index $root.PlayerDist $key) 0}}</td>
               <td>{{ index (index $root.PlayerDist $key) 1}}</td>
+            </tr>
+        {{ end }}
+          </table>
+  <h2><a href="https://github.com/sourcequench/league/blob/master/league/npl/npl.go">NPL Prescribed 1 Adjustment</a></h2>
+  <p>Overall Median: {{ index .OneDist 0}} Overall StdDev: {{ index .OneDist 1}} </p>
+      <table style="width:100%">
+          <tr>
+            <th>Player</th>
+            <th>Skill</th>
+            <th>Match Win Percent</th>
+            <th>Median</th>
+            <th>Standard Deviation</th>
+          </tr>
+        {{ range $key, $value := .Oneskills }}
+            <tr bgcolor="#ff99ff">
+              <td>{{ $key }}</td>
+              <td>{{ $value }}</td>
+              <td>{{ index $root.OneWins $key }}</td>
+              <td>{{ index (index $root.OnePlayerDist $key) 0}}</td>
+              <td>{{ index (index $root.OnePlayerDist $key) 1}}</td>
+            </tr>
+        {{ end }}
+          </table>
+  <h2><a href="https://github.com/sourcequench/league/blob/master/league/npl/npl.go">No Change</a></h2>
+  <p>Overall Median: {{ index .NoDist 0}} Overall StdDev: {{ index .NoDist 1}} </p>
+      <table style="width:100%">
+          <tr>
+            <th>Player</th>
+            <th>Skill</th>
+            <th>Match Win Percent</th>
+            <th>Median</th>
+            <th>Standard Deviation</th>
+          </tr>
+        {{ range $key, $value := .Noskills }}
+            <tr bgcolor="#66d9ff">
+              <td>{{ $key }}</td>
+              <td>{{ $value }}</td>
+              <td>{{ index $root.NoWins $key }}</td>
+              <td>{{ index (index $root.NoPlayerDist $key) 0}}</td>
+              <td>{{ index (index $root.NoPlayerDist $key) 1}}</td>
             </tr>
         {{ end }}
           </table>

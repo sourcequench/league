@@ -2,7 +2,6 @@ package common
 
 import (
 	"github.com/dylrich/rating/glicko2"
-	"github.com/golang/glog"
 	"github.com/gonum/stat"
 	"github.com/mafredri/go-trueskill/gaussian"
 	"github.com/sourcequench/league/interfaces"
@@ -120,6 +119,28 @@ func FinalSkill(matches []Match) map[string]float64 {
 	return skills
 }
 
+// Provides a map of player to match win percent.
+func WinRecord(matches []Match) map[string]float64 {
+	skills := make(map[string]float64)
+	records := make(map[string][]float64)
+
+	for _, match := range matches {
+		// Player 1 is the winner
+		if match.P1needs == match.P1got {
+			records[match.P1name] = append(records[match.P1name], 1)
+			records[match.P2name] = append(records[match.P2name], 0)
+		} else { // Player 2 is the winner
+			records[match.P2name] = append(records[match.P2name], 1)
+			records[match.P1name] = append(records[match.P1name], 0)
+		}
+		for player, record := range records {
+			mu, _ := stat.MeanStdDev(record, nil)
+			skills[player] = mu
+		}
+	}
+	return skills
+}
+
 // Provides a map mu and sigma for each player given their raw distributions.
 // The slice of float64 values in response are [0] mean, [1] stddev
 func PlayerNormal(userDiffs map[string][]float64) map[string][]float64 {
@@ -138,7 +159,7 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 	skills := make(map[string]float64)
 
 	var adjMatches []Match
-	glog.V(2).Infoln("INITIAL SKILL")
+	//	glog.V(2).Infoln("INITIAL SKILL")
 	for _, match := range matches {
 		adjMatch := Match{}
 
@@ -151,7 +172,7 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 		p1skill, ok := skills[match.P1name]
 		if !ok {
 			skills[match.P1name] = match.P1skill
-			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P1name, match.P1skill)
+			//			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P1name, match.P1skill)
 			adjMatch.P1skill = match.P1skill
 			p1skill = match.P1skill
 		}
@@ -159,24 +180,25 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 		p2skill, ok := skills[match.P2name]
 		if !ok {
 			skills[match.P2name] = match.P2skill
-			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P2name, match.P2skill)
+			//			glog.V(2).Infof("Initial Skill: %s: %f\n", match.P2name, match.P2skill)
 			adjMatch.P2skill = match.P2skill
 			p2skill = match.P2skill
 		}
 		adjMatch.P2skill = p2skill
-		glog.V(2).Infof("Skills set to NplRace for %s vs %s: orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
+		//		glog.V(2).Infof("Skills set to NplRace for %s vs %s: orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
 
 		// Look up and adjust needs from the race chart.
-		adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
+		//adjMatch.P1needs, adjMatch.P2needs = npl.NplRace(adjMatch.P1skill, adjMatch.P2skill)
+		adjMatch.P1needs, adjMatch.P2needs = npl.FitRace(adjMatch.P1skill, adjMatch.P2skill, match.P1got, match.P2got)
 		// Debug log when we make a change in race calculation.
 		if adjMatch.P1needs != match.P1needs || adjMatch.P2needs != match.P2needs {
-			glog.V(2).Infof("Adjusted match for %s vs %s: orig race:%f|%f new race:%f|%f orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1needs, match.P2needs, adjMatch.P1needs, adjMatch.P2needs, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
+			//			glog.V(2).Infof("Adjusted match for %s vs %s: orig race:%f|%f new race:%f|%f orig skills:%f|%f new skills:%f|%f ", match.P1name, match.P2name, match.P1needs, match.P2needs, adjMatch.P1needs, adjMatch.P2needs, match.P1skill, match.P2skill, adjMatch.P1skill, adjMatch.P2skill)
 		}
 
 		// Model a new "got" games, if historic data can't determine the winner.
 
-		//adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
-		adjMatch.P1got, adjMatch.P2got = StatUpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got, match.P1needs, match.P2needs)
+		adjMatch.P1got, adjMatch.P2got = UpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got)
+		//		adjMatch.P1got, adjMatch.P2got = StatUpdateGot(adjMatch.P1needs, adjMatch.P2needs, match.P1got, match.P2got, match.P1needs, match.P2needs)
 
 		maxGames := adjMatch.P1needs + adjMatch.P2needs - 1
 		playedGames := match.P1got + match.P2got
@@ -185,15 +207,15 @@ func UpdateMatches(matches []Match, upskill interfaces.Skill) []Match {
 		if adjMatch.P1got == adjMatch.P1needs {
 			w := skills[match.P1name]
 			l := skills[match.P2name]
-			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
+			//			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
 			skills[match.P1name], skills[match.P2name] = upskill.Update(w, l, maxGames, playedGames)
-			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P1name], skills[match.P2name])
+			//			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P1name], skills[match.P2name])
 		} else {
 			w := skills[match.P2name]
 			l := skills[match.P1name]
-			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
+			//			glog.V(2).Infof("### Sent %f, %f into Update. ", w, l)
 			skills[match.P2name], skills[match.P1name] = upskill.Update(w, l, maxGames, playedGames)
-			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P2name], skills[match.P1name])
+			//			glog.V(2).Infof("### Got %f, %f from Update. ", skills[match.P2name], skills[match.P1name])
 		}
 		adjMatch.P1skill, adjMatch.P2skill = skills[match.P1name], skills[match.P2name]
 		/*
@@ -238,15 +260,17 @@ func StatUpdateGot(
 		case p1ratio > p2ratio:
 			p1Got = p1Needs
 			// Assume the original ratio and multiply that by the new needs and round.
-			p2Got = math.Round(origP2ratio * p2Needs)
+			//			p2Got = math.Round(origP2ratio * p2Needs)
+			p2Got = origP2ratio * p2Needs
 		// P2 had the higher ratio
 		case p2ratio > p1ratio:
 			p2Got = p2Needs
 			// Assume the original ratio and multiply that by the new needs and round.
-			p1Got = math.Round(origP1ratio * p1Needs)
+			//			p1Got = math.Round(origP1ratio * p1Needs)
+			p1Got = origP1ratio * p1Needs
 		}
 	} else if (p1Got > p1Needs && p2Got < p2Needs) ||
-		(p1Got > p1Needs && p2Got > p2Needs) {
+		(p1Got < p1Needs && p2Got > p2Needs) {
 		// P1 has too many, P2 has not enough or the reverse.
 		switch {
 		// With equal proportions, the original winner snaps to a win.
@@ -270,9 +294,13 @@ func StatUpdateGot(
 			p2Got = p2Needs
 			p1Got = p1Needs - 1
 		}
+	} else if p1Got == p1Needs || p2Got == p2Needs {
+		// We really shouldn't be sending data to the Update function when we alreadyi
+		// have a winer, but handle it anyhow.
+		return p1Got, p2Got
 	} else {
 		// This should never happen.
-		glog.Fatalf("What the hell was that?: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
+		//		glog.Fatalf("What the hell was that?: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
 	}
 
 	return p1Got, p2Got
@@ -285,12 +313,12 @@ func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 	for p1Got > p1Needs && p2Got > p2Needs {
 		pwin := p1Needs / (p1Needs + p2Needs)
 		r := rand.Float64()
-		glog.V(2).Infof("both players have too many games needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
+		//		glog.V(2).Infof("both players have too many games needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
 		if r < pwin {
-			glog.V(2).Infof("p1 docked a game\n")
+			//			glog.V(2).Infof("p1 docked a game\n")
 			p1Got -= 1
 		} else {
-			glog.V(2).Infof("p2 docked a game\n")
+			//			glog.V(2).Infof("p2 docked a game\n")
 			p2Got -= 1
 		}
 
@@ -300,22 +328,22 @@ func UpdateGot(p1Needs, p2Needs, p1Got, p2Got float64) (float64, float64) {
 	for p1Got < p1Needs && p2Got < p2Needs {
 		pwin := p1Needs / (p1Needs + p2Needs)
 		r := rand.Float64()
-		glog.V(2).Infof("neither player can achieve a win: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
+		//		glog.V(2).Infof("neither player can achieve a win: needs:%f|%f got:%f|%f ", p1Needs, p2Needs, p1Got, p2Got)
 		if r < pwin {
-			glog.V(2).Infof("p1 given a game\n")
+			//			glog.V(2).Infof("p1 given a game\n")
 			p1Got += 1
 		} else {
-			glog.V(2).Infof("p1 given a game\n")
+			//			glog.V(2).Infof("p1 given a game\n")
 			p2Got += 1
 		}
 	}
 	// Only one player had too many games - they win.
 	if p1Got > p1Needs {
-		glog.V(2).Infof("p1 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
+		//		glog.V(2).Infof("p1 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
 		p1Got = p1Needs
 	}
 	if p2Got > p2Needs {
-		glog.V(2).Infof("p2 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
+		//		glog.V(2).Infof("p2 had enough games to win: needs:%f|%f got:%f|%f \n", p1Needs, p2Needs, p1Got, p2Got)
 		p2Got = p2Needs
 	}
 

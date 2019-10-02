@@ -127,7 +127,7 @@ func TestNplPwin(t *testing.T) {
 			desc: "big skill difference, 64, lower player first",
 			s1:   30,
 			s2:   94,
-			want: 0.822222,
+			want: 0.813612,
 		}, {
 			desc: "same skill",
 			s1:   50,
@@ -141,11 +141,53 @@ func TestNplPwin(t *testing.T) {
 		},
 	}
 
-	const tolerance = .000001
+	const tolerance = .001
 	for _, c := range cases {
 		pwin := NplPwin(c.s1, c.s2)
 		if math.Abs(pwin-c.want) > tolerance {
 			t.Errorf("want: %f, got: %f", c.want, pwin)
+		}
+	}
+}
+
+func TestFitRace(t *testing.T) {
+	cases := []struct {
+		desc         string
+		s1, s2       float64
+		g1, g2       float64
+		want1, want2 float64
+	}{
+		{
+			desc:  "difference of 30, lower player first",
+			s1:    30,
+			s2:    60,
+			g1:    8,
+			g2:    8,
+			want1: 8,
+			want2: 15,
+		}, {
+			desc:  "no difference",
+			s1:    70,
+			s2:    70,
+			g1:    6,
+			g2:    5,
+			want1: 6,
+			want2: 6,
+		}, {
+			desc:  "90 point difference, lower player second",
+			s1:    120,
+			s2:    30,
+			g1:    14,
+			g2:    3,
+			want1: 20,
+			want2: 3,
+		},
+	}
+
+	for _, c := range cases {
+		n1, n2 := FitRace(c.s1, c.s2, c.g1, c.g2)
+		if n1 != c.want1 || n2 != c.want2 {
+			t.Errorf("want: %f, %f  got: %f, %f", c.want1, c.want2, n1, n2)
 		}
 	}
 }

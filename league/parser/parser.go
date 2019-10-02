@@ -8,7 +8,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	c "github.com/sourcequench/league/common"
 	pb "github.com/sourcequench/league/proto"
-	"google.golang.org/appengine/file"
+	//	"google.golang.org/appengine/file"
 	"io"
 	"os"
 	"strconv"
@@ -24,10 +24,8 @@ func CloudOpen(f string, ctx context.Context) (io.Reader, error) {
 	defer client.Close()
 
 	// Get the cloud storage bucket name.
-	bucketName, err := file.DefaultBucketName(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get default GCS bucket name: %v", err)
-	}
+	//	bucketName, err := file.DefaultBucketName(ctx)
+	bucketName := "league-253800.appspot.com"
 	// Set the bucket of the client to be the default bucket.
 	bucket := client.Bucket(bucketName)
 

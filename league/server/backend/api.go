@@ -51,7 +51,7 @@ func GetRoster(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	j, err := json.Marshal(roster)
-	log.Printf("encoding roster: %v %v", j, err)
+	log.Printf("encoding roster: %s %v", string(j), err)
 	if err := json.NewEncoder(w).Encode(roster); err != nil {
 		panic(err)
 	}

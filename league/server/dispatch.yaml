@@ -1,0 +1,9 @@
+dispatch:
+  # Default service serves simple hostname request.
+  - url: "*/report"
+    service: default
+  - url: "*/upload"
+    service: default
+  # GRPC API
+  - url: "*/api"
+    service: backend

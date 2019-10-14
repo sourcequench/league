@@ -1,0 +1,6 @@
+runtime: go112
+env: standard
+service: backend
+handlers:
+- url: /api/*
+  script: auto

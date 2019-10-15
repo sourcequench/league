@@ -2,5 +2,9 @@ runtime: go112
 env: standard
 service: default
 handlers:
+- url: /css
+  static_dir: css
+- url: /images
+  static_dir: images
 - url: /.*
   script: auto

@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-var templates = template.Must(template.ParseFiles("report.html", "upload.html"))
+var templates = template.Must(template.ParseFiles("report.html", "upload.html", "material.html"))
 
 func main() {
 	port := os.Getenv("PORT")
@@ -29,6 +29,7 @@ func main() {
 	}
 	http.HandleFunc("/upload", Upload)
 	http.HandleFunc("/report", Report)
+	http.HandleFunc("/material", Material)
 	log.Printf("Listening on port: %s", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
@@ -164,6 +165,98 @@ type Dump struct {
 	Wins       map[string]float64
 }
 
+func Material(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	client, err := logging.NewClient(ctx, "league-253800")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+	log := client.Logger("server-log")
+
+	fileName := "uploaded.csv"
+	matches, e := parser.Parse(fileName, ctx)
+	if len(matches) == 0 {
+		fmt.Println("shit - didn't work")
+	}
+	if len(e) != 0 {
+		log.Log(logging.Entry{Payload: fmt.Sprintf("failed to parse: %v", err)})
+		fmt.Printf("shit - errors: %v", e)
+	}
+	w.Header().Set("Content-Type", "text/html")
+	iskills := c.InitialSkill(matches)
+	fskills := c.FinalSkill(matches)
+	// 3/2/1
+	threematches := c.UpdateMatches(matches, npl.ThreeTwoOne{})
+	threeskills := c.FinalSkill(threematches)
+	threediffs := c.PercentDiff(threematches)
+	threemu, threesigma := stat.MeanStdDev(threediffs, nil)
+	threeperuser := c.PerUserPercentDiff(threematches)
+	threedist := c.PlayerNormal(threeperuser)
+	threewins := c.WinRecord(threematches)
+
+	// 2/1/0
+	twomatches := c.UpdateMatches(matches, npl.TwoOneZero{})
+	twoskills := c.FinalSkill(twomatches)
+	twodiffs := c.PercentDiff(twomatches)
+	twomu, twosigma := stat.MeanStdDev(twodiffs, nil)
+	twoperuser := c.PerUserPercentDiff(twomatches)
+	twodist := c.PlayerNormal(twoperuser)
+	twowins := c.WinRecord(twomatches)
+
+	// +-2
+	zmatches := c.UpdateMatches(matches, npl.Two{})
+	skills := c.FinalSkill(zmatches)
+	zdiffs := c.PercentDiff(zmatches)
+	zmu, zsigma := stat.MeanStdDev(zdiffs, nil)
+	zperuser := c.PerUserPercentDiff(zmatches)
+	zdist := c.PlayerNormal(zperuser)
+	zwins := c.WinRecord(zmatches)
+
+	// +-1
+	onematches := c.UpdateMatches(matches, npl.One{})
+	oneskills := c.FinalSkill(onematches)
+	onediffs := c.PercentDiff(onematches)
+	onemu, onesigma := stat.MeanStdDev(onediffs, nil)
+	oneperuser := c.PerUserPercentDiff(onematches)
+	onedist := c.PlayerNormal(oneperuser)
+	onewins := c.WinRecord(onematches)
+
+	// No change
+	nomatches := c.UpdateMatches(matches, npl.NoChange{})
+	noskills := c.FinalSkill(nomatches)
+	nodiffs := c.PercentDiff(nomatches)
+	nomu, nosigma := stat.MeanStdDev(nodiffs, nil)
+	noperuser := c.PerUserPercentDiff(nomatches)
+	nodist := c.PlayerNormal(noperuser)
+	nowins := c.WinRecord(nomatches)
+
+	d := Dump{
+		Iskills:         iskills,
+		Fskills:         fskills,
+		Threeskills:     threeskills,
+		ThreeDist:       []float64{threemu, threesigma},
+		ThreePlayerDist: threedist,
+		ThreeWins:       threewins,
+		Twoskills:       twoskills,
+		TwoWins:         twowins,
+		TwoDist:         []float64{twomu, twosigma},
+		TwoPlayerDist:   twodist,
+		Oneskills:       oneskills,
+		OneDist:         []float64{onemu, onesigma},
+		OnePlayerDist:   onedist,
+		OneWins:         onewins,
+		Noskills:        noskills,
+		NoDist:          []float64{nomu, nosigma},
+		NoPlayerDist:    nodist,
+		NoWins:          nowins,
+		Skills:          skills,
+		Dist:            []float64{zmu, zsigma},
+		PlayerDist:      zdist,
+		Wins:            zwins,
+	}
+	renderTemplate(w, "material", d)
+}
 func Report(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	client, err := logging.NewClient(ctx, "league-253800")
